@@ -1,0 +1,10 @@
+node_modules
+.next
+src/generated/prisma
+coverage
+.env
+.git
+.codegraph
+.omo
+*.log
+*.tsbuildinfo
