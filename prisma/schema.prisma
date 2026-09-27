@@ -6,3 +6,461 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum AccountType {
+  CASH
+  BANK
+  EWALLET
+  QRIS
+  OTHER
+}
+
+enum LedgerDirection {
+  IN
+  OUT
+}
+
+enum TransactionCategory {
+  INCOME
+  EXPENSE
+  PULSA
+  DATA_PACKAGE
+  PLN_TOKEN
+  PPOB
+  BANK_TRANSFER
+  CASH_WITHDRAWAL
+  EWALLET_TOPUP
+  PRODUCT_SALE
+  OTHER
+}
+
+enum TransactionStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum SnapshotSource {
+  MANUAL
+  IMPORT
+  PROVIDER_SYNC
+  LOCAL_SYNC
+}
+
+enum ExternalMatchStatus {
+  UNMATCHED
+  MATCHED
+  IGNORED
+}
+
+enum ExternalReconcileAction {
+  NONE
+  MATCHED_EXISTING
+  RECORDED_INCOME
+  RECORDED_EXPENSE
+  IGNORED
+}
+
+enum PurchaseStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum ReceivableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  CANCELLED
+}
+
+enum PayableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  CANCELLED
+}
+
+enum RefundLiabilityStatus {
+  OPEN
+  PARTIAL
+  PAID
+  CANCELLED
+}
+
+enum InventoryMovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  SALE_CANCELLED
+  PURCHASE_CANCELLED
+}
+
+model Account {
+  id                     String                    @id @default(cuid())
+  name                   String
+  type                   AccountType
+  isActive               Boolean                   @default(true)
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  ledgerEntries          LedgerEntry[]
+  providerConnection     ProviderConnection?
+  reconciliations        CashReconciliation[]
+  externalSnapshots      ExternalBalanceSnapshot[]
+  externalTransactions   ExternalTransaction[]
+  localBankConnection    LocalBankConnection?
+  receivablePayments     ReceivablePayment[]
+  customerRefundPayments CustomerRefundPayment[]
+  payablePayments        PayablePayment[]
+}
+
+model Provider {
+  id          String               @id @default(cuid())
+  code        String               @unique
+  name        String
+  category    AccountType
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  connections ProviderConnection[]
+
+  @@index([category, isActive])
+}
+
+model ProviderConnection {
+  id                String                     @id @default(cuid())
+  accountId         String                     @unique
+  account           Account                    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  providerId        String
+  provider          Provider                   @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  externalAccountId String
+  status            ConnectionStatus           @default(ACTIVE)
+  lastSyncedAt      DateTime?
+  metadata          Json?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  snapshots         ExternalBalanceSnapshot[]
+
+  @@index([providerId, status])
+}
+
+model LocalBankConnection {
+  id            String           @id @default(cuid())
+  accountId     String           @unique
+  account       Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  providerCode  String
+  pairingToken  String?          @unique
+  enabled       Boolean          @default(true)
+  status        ConnectionStatus @default(ACTIVE)
+  lastSyncAt    DateTime?
+  lastSuccessAt DateTime?
+  lastErrorAt   DateTime?
+  metadata      Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([providerCode, status])
+  @@index([pairingToken])
+}
+
+model ExternalBalanceSnapshot {
+  id                   String              @id @default(cuid())
+  accountId            String
+  account              Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  providerConnectionId String?
+  providerConnection   ProviderConnection? @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull)
+  balance              BigInt
+  source               SnapshotSource      @default(MANUAL)
+  note                 String?
+  snapshotAt           DateTime            @default(now())
+  rawPayload           Json?
+  createdAt            DateTime            @default(now())
+
+  @@index([accountId, snapshotAt])
+  @@index([providerConnectionId, snapshotAt])
+}
+
+model CashReconciliation {
+  id              String   @id @default(cuid())
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  systemBalance   BigInt
+  physicalAmount  BigInt
+  difference      BigInt
+  note            String?
+  reconciledAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([accountId, reconciledAt])
+}
+
+model ExternalTransaction {
+  id                   String                   @id @default(cuid())
+  accountId            String
+  account              Account                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date                 DateTime
+  description          String
+  amount               BigInt
+  direction            LedgerDirection?
+  runningBalance       BigInt?
+  matchStatus          ExternalMatchStatus      @default(UNMATCHED)
+  matchedTransactionId String?
+  matchedTransaction   Transaction?             @relation(fields: [matchedTransactionId], references: [id], onDelete: SetNull)
+  reconcileAction      ExternalReconcileAction  @default(NONE)
+  note                 String?
+  rawPayload           Json?
+  reconciledAt         DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  @@index([accountId, date])
+  @@index([accountId, matchStatus])
+  @@index([matchedTransactionId])
+}
+
+model Transaction {
+  id                   String                @id @default(cuid())
+  transactionNumber    String                @unique
+  category             TransactionCategory
+  description          String
+  status               TransactionStatus     @default(COMPLETED)
+  grossAmount          BigInt
+  costAmount           BigInt                @default(0)
+  feeAmount            BigInt                @default(0)
+  profitAmount         BigInt                @default(0)
+  occurredAt           DateTime              @default(now())
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  cancelledAt          DateTime?
+  cancelReason         String?
+  ledgerEntries        LedgerEntry[]
+  externalTransactions ExternalTransaction[]
+  receivable           Receivable?
+  inventoryMovements   InventoryMovement[]
+
+  @@index([category, status])
+  @@index([occurredAt])
+}
+
+model LedgerEntry {
+  id                    String                 @id @default(cuid())
+  accountId             String
+  account               Account                @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  transactionId         String?
+  transaction           Transaction?           @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  direction             LedgerDirection
+  amount                BigInt
+  description           String
+  occurredAt            DateTime               @default(now())
+  createdAt             DateTime               @default(now())
+  receivablePayment     ReceivablePayment?
+  customerRefundPayment CustomerRefundPayment?
+  payablePayment        PayablePayment?
+
+  @@index([accountId, occurredAt])
+  @@index([transactionId])
+}
+
+model Customer {
+  id          String                    @id @default(cuid())
+  name        String
+  phone       String?
+  notes       String?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  receivables Receivable[]
+  refunds     CustomerRefundLiability[]
+
+  @@index([name])
+  @@index([phone])
+}
+
+model Supplier {
+  id          String             @id @default(cuid())
+  name        String
+  phone       String?
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  purchases   SupplierPurchase[]
+  payables    Payable[]
+
+  @@index([name])
+}
+
+model SupplierPurchase {
+  id             String              @id @default(cuid())
+  purchaseNumber String              @unique
+  supplierId     String
+  supplier       Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  totalAmount    BigInt
+  isCredit       Boolean             @default(false)
+  status         PurchaseStatus      @default(COMPLETED)
+  occurredAt     DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  payable        Payable?
+  movements      InventoryMovement[]
+
+  @@index([supplierId, status])
+  @@index([occurredAt])
+}
+
+model Receivable {
+  id               String                   @id @default(cuid())
+  receivableNumber String                   @unique
+  customerId       String
+  customer         Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  transactionId    String                   @unique
+  transaction      Transaction              @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  totalAmount      BigInt
+  paidAmount       BigInt                   @default(0)
+  remainingAmount  BigInt
+  status           ReceivableStatus         @default(OPEN)
+  dueDate          DateTime?
+  notes            String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  payments         ReceivablePayment[]
+  refundLiability  CustomerRefundLiability?
+
+  @@index([customerId, status])
+  @@index([status])
+}
+
+model ReceivablePayment {
+  id            String      @id @default(cuid())
+  receivableId  String
+  receivable    Receivable  @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+  accountId     String
+  account       Account     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  amount        BigInt
+  paymentDate   DateTime    @default(now())
+  notes         String?
+  ledgerEntryId String      @unique
+  ledgerEntry   LedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  createdAt     DateTime    @default(now())
+
+  @@index([receivableId])
+  @@index([accountId])
+}
+
+model CustomerRefundLiability {
+  id              String                  @id @default(cuid())
+  liabilityNumber String                  @unique
+  customerId      String
+  customer        Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  receivableId    String                  @unique
+  receivable      Receivable              @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+  totalAmount     BigInt
+  refundedAmount  BigInt                  @default(0)
+  remainingAmount BigInt
+  status          RefundLiabilityStatus   @default(OPEN)
+  reason          String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  refundPayments  CustomerRefundPayment[]
+
+  @@index([customerId, status])
+  @@index([status])
+}
+
+model CustomerRefundPayment {
+  id                String                  @id @default(cuid())
+  refundLiabilityId String
+  refundLiability   CustomerRefundLiability @relation(fields: [refundLiabilityId], references: [id], onDelete: Restrict)
+  accountId         String
+  account           Account                 @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  amount            BigInt
+  paymentDate       DateTime                @default(now())
+  notes             String?
+  ledgerEntryId     String                  @unique
+  ledgerEntry       LedgerEntry             @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  createdAt         DateTime                @default(now())
+
+  @@index([refundLiabilityId])
+  @@index([accountId])
+}
+
+model Payable {
+  id                 String            @id @default(cuid())
+  payableNumber      String            @unique
+  supplierId         String
+  supplier           Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplierPurchaseId String?           @unique
+  supplierPurchase   SupplierPurchase? @relation(fields: [supplierPurchaseId], references: [id], onDelete: Restrict)
+  description        String
+  totalAmount        BigInt
+  paidAmount         BigInt            @default(0)
+  remainingAmount    BigInt
+  status             PayableStatus     @default(OPEN)
+  dueDate            DateTime?
+  notes              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  payments           PayablePayment[]
+
+  @@index([supplierId, status])
+  @@index([status])
+}
+
+model PayablePayment {
+  id            String      @id @default(cuid())
+  payableId     String
+  payable       Payable     @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  accountId     String
+  account       Account     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  amount        BigInt
+  paymentDate   DateTime    @default(now())
+  notes         String?
+  ledgerEntryId String      @unique
+  ledgerEntry   LedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  createdAt     DateTime    @default(now())
+
+  @@index([payableId])
+  @@index([accountId])
+}
+
+model Product {
+  id             String              @id @default(cuid())
+  sku            String?             @unique
+  name           String
+  unit           String              @default("pcs")
+  stockQuantity  Int                 @default(0)
+  inventoryValue BigInt              @default(0)
+  averageCost    BigInt              @default(0)
+  sellingPrice   BigInt
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  movements      InventoryMovement[]
+
+  @@index([name])
+}
+
+model InventoryMovement {
+  id                   String                 @id @default(cuid())
+  productId            String
+  product              Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  type                 InventoryMovementType
+  quantityChange       Int
+  unitCost             BigInt
+  totalCost            BigInt
+  transactionId        String?
+  transaction          Transaction?           @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  supplierPurchaseId   String?
+  supplierPurchase     SupplierPurchase?      @relation(fields: [supplierPurchaseId], references: [id], onDelete: Restrict)
+  reversesMovementId   String?                @unique
+  reversesMovement     InventoryMovement?     @relation("MovementReversal", fields: [reversesMovementId], references: [id], onDelete: Restrict)
+  reversedByMovement   InventoryMovement?     @relation("MovementReversal")
+  notes                String?
+  occurredAt           DateTime               @default(now())
+  createdAt            DateTime               @default(now())
+
+  @@index([productId, occurredAt])
+  @@index([supplierPurchaseId])
+}

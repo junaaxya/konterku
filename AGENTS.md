@@ -23,11 +23,12 @@ Do not optimize visual polish at the expense of financial correctness.
 
 Before making changes, read:
 
-1. `ARCHITECTURE.md`
-2. `FLOW.md`
-3. `RULES.md`
-4. Existing source code relevant to the task
-5. Existing Prisma schema and migrations
+1. `.multibrain/session.md`, then only relevant bucket and context notes.
+2. `ARCHITECTURE.md`
+3. `FLOW.md`
+4. `RULES.md`
+5. Existing source code relevant to the task
+6. Existing Prisma schema and migrations
 
 Treat these documents as repository contracts.
 

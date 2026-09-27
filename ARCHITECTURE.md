@@ -231,11 +231,12 @@ Suggested fields:
 id
 name
 type
-openingBalance
 isActive
 createdAt
 updatedAt
 ```
+
+Opening balance is represented by a `Saldo awal` `LedgerEntry`, not a mutable `Account` balance field.
 
 Possible account types:
 
@@ -393,8 +394,7 @@ All money calculations must follow these rules:
 Balance formula:
 
 ```text
-opening balance
-+ all IN ledger entries
+all IN ledger entries (including `Saldo awal`)
 - all OUT ledger entries
 = current balance
 ```

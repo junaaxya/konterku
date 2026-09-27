@@ -7,3 +7,12 @@ coverage/
 !.env.example
 src/generated/prisma/
 *.log
+backups/
+dist-extension/
+*.sql
+*.dump
+.omo/
+.multibrain/
+android-companion/.gradle/
+android-companion/app/build/
+android-companion/.kotlin/

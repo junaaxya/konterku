@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>KONTERKU Bank Sync</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 12px;
+      width: 280px;
+      color: #0f172a;
+      background: #f8fafc;
+      font-size: 13px;
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: #059669;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      display: block;
+      margin-bottom: 3px;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    button {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: #10b981;
+      color: white;
+    }
+    .btn-primary:disabled {
+      background: #94a3b8;
+    }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+      margin-top: 4px;
+    }
+    .status {
+      margin-top: 6px;
+      font-size: 11px;
+      padding: 6px;
+      border-radius: 4px;
+    }
+    .status.success {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .status.error {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <h2>KONTERKU Bank Sync</h2>
+
+  <div class="card">
+    <label for="server-url">Alamat Server KONTERKU (LAN):</label>
+    <input type="text" id="server-url" placeholder="http://192.168.1.50:3000">
+
+    <label for="account-id">ID Akun KONTERKU:</label>
+    <input type="text" id="account-id" placeholder="cm...">
+
+    <label for="pairing-token">Token Pairing:</label>
+    <input type="password" id="pairing-token" placeholder="ktk_...">
+    <button id="save-settings-btn" class="btn-secondary">Simpan Pengaturan</button>
+  </div>
+
+  <div class="card" id="scan-card">
+    <div class="row">
+      <span style="color: #64748b;">Bank Terdeteksi:</span>
+      <strong id="provider-code">-</strong>
+    </div>
+    <div class="row">
+      <span style="color: #64748b;">No. Rekening:</span>
+      <span id="account-ident">-</span>
+    </div>
+    <div class="row">
+      <span style="color: #64748b;">Saldo Terbaca:</span>
+      <strong id="detected-balance" style="color: #059669; font-size: 14px;">-</strong>
+    </div>
+  </div>
+
+  <button id="scan-btn" class="btn-secondary" style="margin-bottom: 6px;">1. Periksa Saldo Tab Ini</button>
+  <button id="sync-btn" class="btn-primary" disabled>2. Konfirmasi & Kirim ke Server</button>
+
+  <div id="status-box" class="status" style="display: none;"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

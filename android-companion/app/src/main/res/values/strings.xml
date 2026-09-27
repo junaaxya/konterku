@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">KONTERKU Companion</string>
+    <string name="accessibility_service_description">Layanan pendukung KONTERKU untuk membaca saldo rekening pada aplikasi perbankan resmi yang didukung secara aman tanpa menyimpan sandi atau PIN.</string>
+    <string name="status_title">Status Koneksi &amp; Layanan</string>
+    <string name="status_accessibility">Layanan Aksesibilitas:</string>
+    <string name="status_lan">Koneksi LAN Server:</string>
+    <string name="status_pairing">Status Pairing Token:</string>
+    <string name="bank_section_title">Deteksi Saldo Perbankan</string>
+    <string name="detected_provider">Bank / Aplikasi:</string>
+    <string name="detected_balance">Saldo Terbaca:</string>
+    <string name="btn_read_balance">Ambil Saldo</string>
+    <string name="btn_send_server">Kirim ke KONTERKU</string>
+    <string name="printer_section_title">Printer Thermal</string>
+    <string name="printer_model">EPPOS EPX583-V2 (58mm)</string>
+    <string name="btn_test_print">Tes Cetak</string>
+</resources>

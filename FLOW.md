@@ -469,7 +469,8 @@ Actions:
 - Add account.
 - Rename account.
 - Disable account.
-- Set opening balance.
+
+Phase 1 records an optional opening balance only during account creation as an auditable `Saldo awal` ledger entry.
 
 Avoid deleting an account that has ledger history.
 
