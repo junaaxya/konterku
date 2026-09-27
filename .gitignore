@@ -10,6 +10,7 @@ src/generated/prisma/
 backups/
 dist-extension/
 *.sql
+!prisma/migrations/**/*.sql
 *.dump
 .omo/
 .multibrain/

@@ -1,0 +1,1 @@
+ALTER TABLE "LedgerEntry" ALTER COLUMN "amount" TYPE BIGINT;
