@@ -57,6 +57,7 @@ export async function createCounterTransactionAction(formData: FormData): Promis
       const tx = await createProductTransaction({
         category: categoryVal,
         customerAccountId: isCreditRaw ? undefined : formData.get("customerAccountId"),
+        costAccountId: formData.get("costAccountId"),
         costAmount: formData.get("costAmount") || "0",
         sellingPrice: formData.get("sellingPrice"),
         description: formData.get("description"),

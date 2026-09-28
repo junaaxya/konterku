@@ -80,6 +80,7 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [customerAccountId, setCustomerAccountId] = useState(accounts[0]?.id || "")
+  const [sourceStoreAccountId, setSourceStoreAccountId] = useState(accounts[0]?.id || "")
   const [costAmount, setCostAmount] = useState("")
   const [sellingPrice, setSellingPrice] = useState("")
   const [productDesc, setProductDesc] = useState("")
@@ -187,6 +188,11 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
 
   const getAccountName = (id: string) => accounts.find((a) => a.id === id)?.name || id
   const parseBig = (val: string) => (val && /^\d+$/.test(val) ? BigInt(val) : 0n)
+  const isDigitalCategory =
+    category !== "PRODUCT_SALE" &&
+    category !== "BANK_TRANSFER" &&
+    category !== "CASH_WITHDRAWAL" &&
+    category !== "EWALLET_TOPUP"
 
   let reviewContent = null
 
@@ -324,7 +330,6 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
     const sell = parseBig(sellingPrice)
     const profit = sell - cost
     const customerObj = customers.find((c) => c.id === customerId)
-
     reviewContent = (
       <div className="card" style={{ background: "var(--paper)", border: "1.5px solid var(--line)", padding: "1.25rem", borderRadius: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
@@ -334,8 +339,17 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
           <h3 style={{ margin: 0, fontSize: "1.0625rem", fontWeight: 800 }}>Ringkasan Transaksi</h3>
         </div>
         <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", rowGap: "0.625rem", margin: 0, fontSize: "0.875rem" }}>
-          <dt style={{ color: "var(--muted)" }}>Modal / Biaya Kulakan</dt>
-          <dd style={{ fontWeight: 700, margin: 0 }}>{formatRupiah(cost)}</dd>
+              <dt style={{ color: "var(--muted)" }}>Modal / Biaya Kulakan</dt>
+              <dd style={{ fontWeight: 700, margin: 0 }}>{formatRupiah(cost)}</dd>
+
+              {isDigitalCategory && (
+                <>
+                  <dt style={{ color: "var(--muted)" }}>Saldo Toko Berkurang</dt>
+                  <dd style={{ fontWeight: 700, margin: 0, color: "var(--danger)" }}>
+                    - {formatRupiah(cost)} ({getAccountName(sourceStoreAccountId)})
+                  </dd>
+                </>
+              )}
 
           <dt style={{ color: "var(--ink)", fontWeight: 700 }}>Harga Jual Pelanggan</dt>
           <dd style={{ fontWeight: 800, margin: 0, fontSize: "0.9375rem" }}>{formatRupiah(sell)}</dd>
@@ -846,6 +860,7 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
         {/* PRODUCT-LIKE FORMS (Pulsa, Paket Data, Token PLN, PPOB, Penjualan, Lainnya) */}
         {category !== "BANK_TRANSFER" && category !== "CASH_WITHDRAWAL" && category !== "EWALLET_TOPUP" && (
           <>
+            {isDigitalCategory && <input type="hidden" name="costAccountId" value={sourceStoreAccountId} />}
             {!isCredit && <input type="hidden" name="customerAccountId" value={customerAccountId} />}
             <input type="hidden" name="costAmount" value={costAmount} />
             <input type="hidden" name="sellingPrice" value={sellingPrice} />
@@ -920,7 +935,7 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
                     </>
                   )}
 
-                  {category !== "OTHER" && (
+                  {isDigitalCategory && (
                     <div
                       className="form-group form-col-full"
                       style={{
@@ -1002,6 +1017,25 @@ export function CounterTransactionFlow({ accounts, customers = [], products = []
                         id="customer-acc-select"
                         value={customerAccountId}
                         onChange={(e) => setCustomerAccountId(e.target.value)}
+                        className="form-control"
+                        required
+                      >
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.type})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {isDigitalCategory && (
+                    <div className="form-group form-col-full">
+                      <label htmlFor="source-store-acc-select">Akun Sumber Toko (Saldo Berkurang)</label>
+                      <select
+                        id="source-store-acc-select"
+                        value={sourceStoreAccountId}
+                        onChange={(e) => setSourceStoreAccountId(e.target.value)}
                         className="form-control"
                         required
                       >
