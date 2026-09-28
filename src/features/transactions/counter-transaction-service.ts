@@ -68,6 +68,17 @@ export const productLikeTransactionSchema = z
       path: ["customerId"],
     },
   )
+  .refine(
+    (data) =>
+      data.category === TransactionCategory.PRODUCT_SALE ||
+      data.costAmount === 0n ||
+      Boolean(data.productId) ||
+      Boolean(data.costAccountId),
+    {
+      message: "costAccountId wajib diisi untuk transaksi digital non-stok.",
+      path: ["costAccountId"],
+    },
+  )
 
 // 2. Transfer Bank Pelanggan
 // Customer wants to transfer nominalTransfer to an external bank.
@@ -187,13 +198,13 @@ export async function createProductTransaction(input: unknown): Promise<Transact
         },
       })
 
-      if (parsed.costAccountId && parsed.costAmount > 0n && !parsed.productId) {
+      if (parsed.costAccountId && effectiveCost > 0n && !parsed.productId) {
         await tx.ledgerEntry.create({
           data: {
             accountId: parsed.costAccountId,
             transactionId: transaction.id,
             direction: LedgerDirection.OUT,
-            amount: parsed.costAmount,
+            amount: effectiveCost,
             description: `Modal ${parsed.category}: ${parsed.description}`,
             occurredAt: parsed.occurredAt,
           },

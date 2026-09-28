@@ -5,6 +5,7 @@ import {
   getAccountBalance,
   setAccountActive,
 } from "../../src/features/accounts/account-ledger"
+import { createCustomer } from "../../src/features/receivables/receivable-service"
 import {
   createBankTransferTransaction,
   createCashWithdrawalTransaction,
@@ -45,6 +46,7 @@ if (databaseUrl === undefined) {
       const accIds = [...createdAccountIds]
 
       if (txIds.length > 0) {
+        await database.receivable.deleteMany({ where: { transactionId: { in: txIds } } })
         await database.ledgerEntry.deleteMany({ where: { transactionId: { in: txIds } } })
         await database.transaction.deleteMany({ where: { id: { in: txIds } } })
         createdTransactionIds.clear()
@@ -65,11 +67,13 @@ if (databaseUrl === undefined) {
     it("records Pulsa transaction with modal, selling price, customer payment IN, and correct profit", async () => {
       // Given: Cash account with 0 balance
       const cash = await createTestAccount("Kas Konter", "CASH", "0")
+      const source = await createTestAccount("Modal Pulsa", "BANK", "100000")
 
       // When: Pulsa 50k sold for 52k, modal 48.5k
       const tx = await createProductTransaction({
-        category: "PULSA",
-        customerAccountId: cash.id,
+          category: "PULSA",
+          customerAccountId: cash.id,
+          costAccountId: source.id,
         costAmount: "48500",
         sellingPrice: "52000",
         description: "Pulsa Telkomsel 50k (08123456789)",
@@ -83,14 +87,16 @@ if (databaseUrl === undefined) {
       expect(tx.costAmount).toBe(48_500n)
       expect(tx.profitAmount).toBe(3_500n)
 
-      // Ledger: Cash IN 52.000
       const balance = await getAccountBalance({ accountId: cash.id })
       expect(balance).toBe(52_000n)
+      expect(await getAccountBalance({ accountId: source.id })).toBe(51_500n)
 
       const entries = await database.ledgerEntry.findMany({ where: { transactionId: tx.id } })
-      expect(entries).toHaveLength(1)
-      expect(entries[0]?.direction).toBe("IN")
-      expect(entries[0]?.amount).toBe(52_000n)
+      expect(entries).toHaveLength(2)
+      expect(entries.find((entry) => entry.accountId === source.id)?.direction).toBe("OUT")
+      expect(entries.find((entry) => entry.accountId === source.id)?.amount).toBe(48_500n)
+      expect(entries.find((entry) => entry.accountId === cash.id)?.direction).toBe("IN")
+      expect(entries.find((entry) => entry.accountId === cash.id)?.amount).toBe(52_000n)
     })
 
     // 2. Transfer Bank Pelanggan
@@ -269,7 +275,7 @@ if (databaseUrl === undefined) {
       expect(detail.ledgerEntries).toHaveLength(4)
     })
 
-    it.each([
+      it.each([
       { category: "DATA_PACKAGE", name: "Paket Data 10GB", cost: "35000", sell: "40000", profit: 5_000n },
       { category: "PLN_TOKEN", name: "Token Listrik 20k", cost: "20500", sell: "23000", profit: 2_500n },
       { category: "PPOB", name: "Bayar Tagihan PDAM", cost: "75000", sell: "77500", profit: 2_500n },
@@ -279,10 +285,12 @@ if (databaseUrl === undefined) {
       "correctly records $category transaction and supports cancellation",
       async ({ category, name, cost, sell, profit }) => {
         const cash = await createTestAccount(`Kas ${category}`, "CASH", "0")
+        const source = await createTestAccount(`Modal ${category}`, "BANK", "100000")
 
         const tx = await createProductTransaction({
           category,
           customerAccountId: cash.id,
+          costAccountId: source.id,
           costAmount: cost,
           sellingPrice: sell,
           description: name,
@@ -293,6 +301,7 @@ if (databaseUrl === undefined) {
         expect(tx.category).toBe(category)
         expect(tx.profitAmount).toBe(profit)
         expect(await getAccountBalance({ accountId: cash.id })).toBe(BigInt(sell))
+        expect(await getAccountBalance({ accountId: source.id })).toBe(100_000n - BigInt(cost))
 
         const cancelled = await cancelTransaction({
           transactionId: tx.id,
@@ -300,15 +309,18 @@ if (databaseUrl === undefined) {
         })
         expect(cancelled.status).toBe("CANCELLED")
         expect(await getAccountBalance({ accountId: cash.id })).toBe(0n)
+        expect(await getAccountBalance({ accountId: source.id })).toBe(100_000n)
       },
     )
 
     it("correctly records negative profit when product is sold below cost and reverses on cancellation", async () => {
       const cash = await createTestAccount("Kas Rugi", "CASH", "0")
+      const source = await createTestAccount("Modal Rugi", "BANK", "100000")
 
       const tx = await createProductTransaction({
         category: "PRODUCT_SALE",
         customerAccountId: cash.id,
+        costAccountId: source.id,
         costAmount: "50000",
         sellingPrice: "45000",
         description: "Obral Cuci Gudang Rugi",
@@ -318,12 +330,42 @@ if (databaseUrl === undefined) {
       expect(tx.status).toBe("COMPLETED")
       expect(tx.profitAmount).toBe(-5_000n)
       expect(await getAccountBalance({ accountId: cash.id })).toBe(45_000n)
+      expect(await getAccountBalance({ accountId: source.id })).toBe(50_000n)
 
       await cancelTransaction({
         transactionId: tx.id,
         reason: "Batal transaksi obral rugi",
       })
       expect(await getAccountBalance({ accountId: cash.id })).toBe(0n)
+      expect(await getAccountBalance({ accountId: source.id })).toBe(100_000n)
+    })
+
+    it("records digital tempo with source OUT and receivable without payment IN", async () => {
+      const source = await createTestAccount("Modal Tempo", "BANK", "100000")
+      const customer = await createCustomer({ name: "Pelanggan Tempo" })
+
+      const tx = await createProductTransaction({
+        category: "OTHER",
+        costAccountId: source.id,
+        costAmount: "30000",
+        sellingPrice: "40000",
+        description: "Jasa tempo",
+        isCredit: true,
+        customerId: customer.id,
+      })
+      createdTransactionIds.add(tx.id)
+
+      expect(tx.receivable?.totalAmount).toBe(40_000n)
+      expect(await getAccountBalance({ accountId: source.id })).toBe(70_000n)
+      const entries = await database.ledgerEntry.findMany({ where: { transactionId: tx.id } })
+      expect(entries).toHaveLength(1)
+      expect(entries[0]?.direction).toBe("OUT")
+      expect(entries[0]?.amount).toBe(30_000n)
+
+      await cancelTransaction({ transactionId: tx.id, reason: "Batal tempo" })
+      expect(await getAccountBalance({ accountId: source.id })).toBe(100_000n)
+      const receivable = await database.receivable.findUnique({ where: { transactionId: tx.id } })
+      expect(receivable?.status).toBe("CANCELLED")
     })
   })
 }
